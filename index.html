@@ -765,6 +765,7 @@
                         <button class="btn top" onclick="window.print()">打印/存PDF</button>
                         <button class="btn top" onclick="resetAll()">恢复默认</button>
                     </div>
+                    <button class="btn top" onclick="togglePanel()" id="toggleBtn">收起</button>
                 </div>
             </div>
 
@@ -2003,8 +2004,14 @@
             render();
         }
 
-        /* ==================== 实时联动 ==================== */
-
+        /* ==================== 面板折叠 / 实时联动 ==================== */
+        /* 收起 / 展开左侧面板 */
+        function togglePanel() {
+            const p = $('panel');
+            p.classList.toggle('collapsed');
+            $('toggleBtn').innerText = p.classList.contains('collapsed') ? '展开' : '收起';
+        }
+        
         /* 输入类控件防抖监听：停顿 250ms 后再重新渲染，避免频繁重绘 */
         let timer = null;
         ['content', 'cols', 'customFont', 'indent', 'fontColor', 'borderColor', 'guideColor',
