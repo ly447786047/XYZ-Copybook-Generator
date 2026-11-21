@@ -1,0 +1,2054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小宇宙字帖生成器</title>
+    <style>
+        /* ========== 全局重置：盒模型统一 + 去除点击高亮 ========== */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            /* Firefox：隐藏滚动条 */
+            scrollbar-width: none;
+            /* IE、旧版 Edge：隐藏滚动条 */
+            -ms-overflow-style: none;
+        }
+
+        /* Chrome / Edge / Safari：隐藏 WebKit 内核滚动条（仍可正常滚动） */
+        *::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* ========== 页面基础样式 ========== */
+        body {
+            margin: 0;
+            padding: 16px;
+            background: #e8edf3;
+            /* 拟态浅灰蓝底色 */
+            font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: #3a4350;
+        }
+
+        /* ================= 左右分栏：左侧 1/3 设置面板，右侧 2/3 预览 ================= */
+        .app {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            max-width: 1700px;
+            margin: 0 auto;
+        }
+
+        /* ========== 左侧设置面板 ==========
+       结构：panel（固定高度、flex 纵向）
+             ├─ panel-head  标题栏（固定不动）
+             └─ panel-body  选项区（独立滚动） */
+        .panel {
+            flex: 0 0 33.333%;
+            width: 33.333%;
+            background: #e8edf3;
+            border-radius: 18px;
+            padding: 16px;
+            box-shadow: 7px 7px 16px #c8ccd2, -7px -7px 16px #ffffff;
+            position: sticky;
+            top: 16px;
+            /* 随页面吸附在视口顶部 */
+            max-height: calc(100vh - 32px);
+            /* 面板最高不超过一屏 */
+            display: flex;
+            flex-direction: column;
+            /* 上下分栏：头部 + 滚动区 */
+            overflow: hidden;
+            /* 面板自身不滚动，滚动交给 body */
+        }
+
+        /* 右侧预览容器：占满剩余宽度 */
+        .preview-wrap {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* ========== 面板标题栏（固定在面板顶部，不随选项区滚动） ========== */
+        .panel-head {
+            flex-shrink: 0;
+            /* 头部禁止被压缩 */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #e8edf3;
+            /* 与面板同色，滚动内容不会穿透 */
+            padding-bottom: 10px;
+            z-index: 5;
+            /* 层级高于滚动内容 */
+        }
+
+        .panel-head h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: .5px;
+        }
+
+        /* 头部右侧按钮组：三个主操作按钮 + 收起/展开按钮，四个按钮尺寸完全一致 */
+        .head-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn.top {
+            width: 96px;
+            height: 38px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        /* 面板选项区：唯一滚动区域 */
+        .panel-body {
+            flex: 1;
+            /* 占满头部之外的剩余高度 */
+            min-height: 0;
+            /* flex 布局下允许收缩，否则滚动条不生效 */
+            overflow-y: auto;
+            /* 内容超出时纵向滚动 */
+        }
+
+        /* 折叠状态：隐藏选项区，只留标题栏 */
+        .panel.collapsed .panel-body {
+            display: none;
+        }
+
+        /* ========== 分组小标题 ========== */
+        .group-title {
+            font-size: 12px;
+            color: #8b94a3;
+            margin: 14px 0 6px;
+            letter-spacing: 1px;
+        }
+
+        /* ========== 表单项：一行布局（标签 + 控件） ========== */
+        .row-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .row-item>label {
+            min-width: 78px;
+            font-size: 12.5px;
+            color: #5a6472;
+            flex-shrink: 0;
+        }
+
+        .row-item>.fill {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        /* 滑块行：滑块 + 颜色框横向排列 */
+        .slider-line {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-line input[type="range"] {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .slider-line input[type="color"] {
+            flex: 0 0 auto;
+        }
+
+        /* ========== 拟态输入控件（输入框 / 下拉 / 文本域 / 数字框） ========== */
+        .neo,
+        .neo-select,
+        .neo-textarea,
+        .neo-num {
+            background: #e8edf3;
+            border: 0;
+            border-radius: 10px;
+            padding: 9px 12px;
+            font-size: 13px;
+            color: #3a4350;
+            box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .neo-num {
+            width: 70px;
+        }
+
+        .neo-textarea {
+            width: 100%;
+            min-height: 84px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        /* ========== 通用按钮 ========== */
+        .btn {
+            background: #e8edf3;
+            border: 0;
+            border-radius: 12px;
+            padding: 11px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #3a4350;
+            box-shadow: 4px 4px 9px #c8ccd2, -4px -4px 9px #ffffff;
+            cursor: pointer;
+            transition: box-shadow .15s, transform .15s;
+            font-family: inherit;
+        }
+
+        /* 按下态：内凹阴影 + 轻微缩放 */
+        .btn:active {
+            box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+            transform: scale(.98);
+        }
+
+        .btn.small {
+            padding: 7px 11px;
+            font-size: 12px;
+            border-radius: 10px;
+        }
+
+        .btn.primary {
+            color: #b3392c;
+        }
+
+        /* 主操作按钮：红色强调 */
+
+        /* ========== 取色器样式 ========== */
+        input[type="color"] {
+            width: 42px;
+            height: 30px;
+            border: 0;
+            border-radius: 8px;
+            padding: 2px;
+            cursor: pointer;
+            background: #e8edf3;
+        }
+
+        /* ========== 滑块（range）样式 ========== */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 22px;
+            background: transparent;
+        }
+
+        /* WebKit 轨道 */
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 3px;
+            background: #dfe5ec;
+            box-shadow: inset 2px 2px 4px #c8ccd2, inset -2px -2px 4px #ffffff;
+        }
+
+        /* WebKit 滑块拇指 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            margin-top: -6px;
+            border-radius: 50%;
+            background: #e8edf3;
+            border: 2px solid #cfd6df;
+            box-shadow: 2px 2px 5px #c0c6ce, -2px -2px 5px #ffffff;
+        }
+
+        /* Firefox 轨道与拇指 */
+        input[type="range"]::-moz-range-track {
+            height: 6px;
+            border-radius: 3px;
+            background: #dfe5ec;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #e8edf3;
+            border: 2px solid #cfd6df;
+        }
+
+        /* 数值标签：显示滑块当前值 */
+        .value-tag {
+            display: inline-block;
+            min-width: 50px;
+            font-size: 12px;
+            color: #b3392c;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ========== 分段选择器（显示/隐藏 等切换按钮组） ========== */
+        .seg {
+            display: inline-flex;
+            align-self: flex-start;
+            flex-wrap: wrap;
+            gap: 2px;
+            background: #e8edf3;
+            border-radius: 10px;
+            padding: 4px;
+            box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+        }
+
+        .seg button {
+            border: 0;
+            background: transparent;
+            color: #6b7482;
+            font-size: 12px;
+            padding: 7px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        /* 选中态：凸起阴影 + 红色文字 */
+        .seg button.on {
+            background: #e8edf3;
+            color: #b3392c;
+            font-weight: 600;
+            box-shadow: 3px 3px 6px #c8ccd2, -3px -3px 6px #ffffff;
+        }
+
+        /* ========== 自定义下拉（字体选择） ========== */
+        .dd {
+            position: relative;
+            flex: 1;
+            min-width: 170px;
+        }
+
+        .dd-trigger {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #e8edf3;
+            border-radius: 10px;
+            padding: 6px 12px 6px 8px;
+            box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .dd-trigger .dd-label {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .dd-trigger .dd-arrow {
+            color: #9aa3b0;
+            font-size: 12px;
+            transition: transform .2s;
+        }
+
+        .dd.open .dd-trigger .dd-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* 展开时箭头翻转 */
+        .dd-menu {
+            position: absolute;
+            z-index: 30;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #eef2f7;
+            border-radius: 14px;
+            padding: 6px;
+            list-style: none;
+            margin: 0;
+            box-shadow: 0 12px 30px rgba(58, 67, 80, .18), 6px 6px 14px #c8ccd2, -6px -6px 14px #ffffff;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .dd.open .dd-menu {
+            display: block;
+        }
+
+        .dd-menu li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .dd-menu li:hover {
+            background: #e4eaf1;
+        }
+
+        .dd-menu li.sel {
+            background: #e8edf3;
+            box-shadow: inset 2px 2px 5px #c8ccd2, inset -2px -2px 5px #ffffff;
+        }
+
+        .dd-txt span {
+            display: block;
+            font-size: 13px;
+            color: #3a4350;
+        }
+
+        .dd-txt small {
+            display: block;
+            font-size: 11px;
+            color: #97a0ad;
+            margin-top: 1px;
+        }
+
+        /* ========== 笔画粗细三档滑块 ========== */
+        .stroke-level {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .stroke-level input[type="range"] {
+            width: 100%;
+        }
+
+        .stroke-marks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #97a0ad;
+            padding: 0 4px;
+        }
+
+        .stroke-marks span.on {
+            color: #b3392c;
+            font-weight: 600;
+        }
+
+        /* ========== 一键配色圆形色板 ========== */
+        .swatches {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sw {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 2px 2px 5px #c8ccd2, -2px -2px 5px #ffffff;
+        }
+
+        /* 头部主操作按钮组（生成 / 打印 / 恢复默认） */
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ================= 右侧预览区 ================= */
+        .preview-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #8b94a3;
+            gap: 10px;
+            margin: 0 0 8px;
+        }
+
+        .page-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            padding-bottom: 30px;
+        }
+
+        .page-wrap {
+            position: relative;
+        }
+
+        /* ================= A4 纸张 ================= */
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        /* 打印时按 A4 纸、无边距输出 */
+
+        .a4-page {
+            width: 210mm;
+            height: 297mm;
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
+            transform-origin: top left;
+            /* 缩放以左上角为原点 */
+            box-shadow: 0 8px 24px rgba(58, 67, 80, .16);
+        }
+
+        /* 页眉页脚条：左 / 中 / 右三栏布局 */
+        .bar {
+            position: absolute;
+            left: 15mm;
+            right: 15mm;
+            display: flex;
+            align-items: flex-start;
+            color: #333;
+            letter-spacing: 0;
+            line-height: 1;
+            /* 行高收紧，文字不越过条带下边界 */
+            z-index: 4;
+            /* 始终盖在外框线之上，避免被线条压住 */
+        }
+
+        .bar>span {
+            flex: 1 1 0;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .bar>span:nth-child(1) {
+            text-align: left;
+        }
+
+        .bar>span:nth-child(2) {
+            text-align: center;
+        }
+
+        .bar>span:nth-child(3) {
+            text-align: right;
+        }
+
+        .bar .page-no {
+            color: #666;
+        }
+
+        /* 字帖网格容器与行 */
+        .grid {
+            position: absolute;
+            top: 15mm;
+            left: 15mm;
+        }
+
+        .row {
+            display: flex;
+            height: var(--cell, 15mm);
+        }
+
+        /* 单个方格：只负责摆放文字，不再自带边框（边框由全局网格线图层统一绘制） */
+        .cell {
+            width: var(--cell, 15mm);
+            height: var(--cell, 15mm);
+            flex: 0 0 var(--cell, 15mm);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            overflow: hidden;
+        }
+
+        /* ---------- 全局网格线图层：整页统一的横线 / 竖线 ---------- */
+        .grid-lines {
+            position: absolute;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* ---------- 方格内辅助线：矢量 SVG ---------- */
+        .gs {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            pointer-events: none;
+        }
+
+        /* 空心描红字形 SVG（矢量描边，打印 PDF 不失真） */
+        .glyph-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        .gs .ln {
+            fill: none;
+            stroke: var(--guide-color);
+            stroke-width: var(--guide-w);
+            vector-effect: non-scaling-stroke;
+        }
+
+        /* 整组格子外框：SVG 图层，线宽全部向外扩张，不侵占内部格子区域 */
+        .frame-svg {
+            position: absolute;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* ---------- 样式选择 chips（线条 / 形状） ---------- */
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 10px 6px 6px;
+            background: #e8edf3;
+            border: 0;
+            border-radius: 11px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12.5px;
+            color: #6b7482;
+            box-shadow: 3px 3px 7px #c8ccd2, -3px -3px 7px #ffffff;
+            transition: box-shadow .15s, color .15s;
+        }
+
+        .chip:active {
+            box-shadow: inset 2px 2px 6px #c8ccd2, inset -2px -2px 6px #ffffff;
+        }
+
+        .chip.on {
+            color: #b3392c;
+            font-weight: 600;
+            box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+        }
+
+        /* chip 内的迷你方格预览 */
+        .chip .mini-cell {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+            border: 1px solid rgba(140, 152, 168, .85);
+            border-radius: 4px;
+            --border-w: 1px;
+            --border-style: solid;
+            --border-color: rgba(140, 152, 168, .85);
+            --guide-color: rgba(140, 152, 168, .9);
+            --guide-w: 1px;
+        }
+
+        .chip .mini-cell .gs {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 禁用/置灰状态（未选任何样式时，相关选项不可用） */
+        .dim {
+            opacity: .45;
+            pointer-events: none;
+        }
+
+        .neo:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+            box-shadow: inset 2px 2px 5px #c8ccd2, inset -2px -2px 5px #ffffff;
+            background: #e3e9f0;
+        }
+
+        /* 提示小字 */
+        .hint {
+            font-size: 12px;
+            color: #97a0ad;
+            line-height: 1.7;
+        }
+
+        /* ========== 窄屏响应式：改为上下堆叠 ========== */
+        @media (max-width: 1000px) {
+            .app {
+                flex-direction: column;
+            }
+
+            .panel {
+                flex: none;
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+
+            .panel-body {
+                overflow: visible;
+            }
+
+            /* 移动端随页面整体滚动，不内部滚动 */
+            .row-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .row-item>label {
+                min-width: 0;
+            }
+
+            .dd {
+                min-width: 0;
+            }
+        }
+
+        /* ========== 打印样式：隐藏设置面板与预览栏，只输出 A4 页面 ========== */
+        @media print {
+
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                background: #fff;
+            }
+
+            .panel,
+            .preview-bar {
+                display: none !important;
+            }
+
+            .page-container {
+                gap: 0;
+                padding: 0;
+            }
+
+            .page-wrap {
+                width: auto !important;
+                height: auto !important;
+            }
+
+            .a4-page {
+                transform: none !important;
+                box-shadow: none;
+                page-break-after: always;
+                break-after: page;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app">
+        <!-- ================= 左侧设置面板 1/3 ================= -->
+        <div class="panel" id="panel">
+            <!-- 标题栏：固定不动，右侧为三个主操作按钮 + 收起/展开按钮 -->
+            <div class="panel-head">
+                <h2>小宇宙字帖生成器 · A4</h2>
+                <div class="head-actions">
+                    <div class="actions">
+                        <button class="btn top primary" onclick="render()">生成字帖</button>
+                        <button class="btn top" onclick="window.print()">打印/存PDF</button>
+                        <button class="btn top" onclick="resetAll()">恢复默认</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 选项区：面板内唯一滚动区域 -->
+            <div class="panel-body">
+                <div class="group-title">内容</div>
+                <div class="row-item">
+                    <label>字帖内容</label>
+                    <div class="fill">
+                        <textarea id="content" class="neo-textarea">再别康桥
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;——徐志摩
+
+轻轻的我走了，
+正如我轻轻的来；
+我轻轻的招手，
+作别西天的云彩。
+
+那河畔的金柳，
+是夕阳中的新娘；
+波光里的艳影，
+在我的心头荡漾。
+
+软泥上的青荇，
+油油的在水底招摇；
+在康河的柔波里，
+我甘心做一条水草！
+那榆荫下的一潭，
+不是清泉，是天上虹；
+揉碎在浮藻间，
+沉淀着彩虹似的梦。
+
+寻梦？撑一支长篙，
+向青草更青处漫溯；
+满载一船星辉，
+在星辉斑斓里放歌。
+
+但我不能放歌，
+悄悄是别离的笙箫；
+夏虫也为我沉默，
+沉默是今晚的康桥！
+
+悄悄的我走了，
+正如我悄悄的来；
+我挥一挥衣袖，
+不带走一片云彩。
+                        </textarea>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>换行处理</label>
+                    <div class="seg" id="breakSeg">
+                        <button data-v="0">按字符连续排</button>
+                        <button data-v="1" class="on">换行即换行</button>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>首行缩进</label>
+                    <div class="fill" style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="indent" class="neo-num" min="0" max="6" step="1" value="2">
+                        <span class="hint">字（仅“换行即换行”时生效）</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>首段居中</label>
+                    <div class="fill" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <div class="seg" id="centerFirstSeg">
+                            <button data-v="1" class="on">开</button>
+                            <button data-v="0">关</button>
+                        </div>
+                        <span class="hint" style="flex:1 1 100%;min-width:0;line-height:1.5">按字数自动居中；行首已敲空格则按你的空格</span>
+                    </div>
+                </div>
+
+                <div class="group-title">格子与字体</div>
+                <div class="row-item">
+                    <label>每行字数</label>
+                    <div class="fill" style="display:flex;align-items:center;gap:10px;">
+                        <input type="number" id="cols" class="neo-num" min="3" max="20" step="1" value="12">
+                        <span id="layoutInfo" class="hint">格子 15.0mm · 每页 18 行</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>字体</label>
+                    <div class="dd" id="fontDd">
+                        <div class="dd-trigger" onclick="toggleDd('fontDd')">
+                            <span class="dd-label" id="fontLabel">楷体 KaiTi</span>
+                            <span class="dd-arrow">▾</span>
+                        </div>
+                        <ul class="dd-menu" id="fontMenu"></ul>
+                    </div>
+                    <input type="hidden" id="fontFamily" value="KaiTi, STKaiti, 楷体, serif">
+                </div>
+                <div class="row-item">
+                    <label>自定义字体</label>
+                    <div class="fill"><input id="customFont" class="neo" style="width:100%" value=""
+                            placeholder="输入字体全称（本地需提前安装），留空沿用上方字体！"></div>
+                </div>
+                <div class="row-item">
+                    <label>字占格比</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="fontRatio" min="0.5" max="1" step="0.05" value="0.80">
+                        <span class="value-tag" id="fontRatioVal">80%</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>字形</label>
+                    <div class="seg" id="shapeSeg">
+                        <button data-v="solid" class="on">实心</button>
+                        <button data-v="hollow">空心描红</button>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>笔画粗细</label>
+                    <div class="fill" style="display:flex;align-items:center;gap:10px;">
+                        <div class="stroke-level" style="flex:1 1 auto">
+                            <input type="range" id="strokeLevel" min="0" max="1" step="1" value="0">
+                            <div class="stroke-marks" id="strokeMarks">
+                                <span class="on">常规</span><span>加粗</span>
+                            </div>
+                        </div>
+                        <span class="value-tag" id="strokeLevelVal">400</span>
+                    </div>
+                </div>
+
+                <div class="group-title">基础线条（自由叠加）</div>
+                <div class="chips" id="lineChips"></div>
+
+                <div class="group-title">几何形状（大小可调）</div>
+                <div class="chips" id="shapeChips"></div>
+
+                <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+                    <span id="shapeMeta" class="hint">已选 4 项</span>
+                    <button class="btn small" onclick="applyPreset(['h','v','d1','d2'])">米字格</button>
+                    <button class="btn small" onclick="applyPreset(['h','v'])">田字格</button>
+                    <button class="btn small" onclick="applyPreset(['d1','d2'])">X 格</button>
+                    <button class="btn small" onclick="clearShapes()">清空</button>
+                </div>
+
+                <div class="row-item" style="margin-top:12px" id="guideStyleRow">
+                    <label>内部线型</label>
+                    <div class="fill"><select id="guideStyle" class="neo-select" style="width:100%"></select></div>
+                </div>
+                <div class="row-item" id="shapeSizeRow">
+                    <label>形状尺寸</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="shapeSize" min="20" max="100" step="5" value="70">
+                        <span class="value-tag" id="shapeSizeVal">70%</span>
+                    </div>
+                </div>
+                <div class="hint">横线、竖线、对角线等基础线条始终满格，不受尺寸影响；形状最大不超过方格。</div>
+
+                <!-- ========== 全局网格线：整页统一横线 / 竖线，格子不再单独描边 ========== -->
+                <div class="group-title">全局网格线（整页统一横线、竖线）</div>
+                <div class="row-item">
+                    <label>显示横线</label>
+                    <div class="seg" id="showHSeg">
+                        <button data-v="1" class="on">显示</button>
+                        <button data-v="0">隐藏</button>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>显示竖线</label>
+                    <div class="seg" id="showVSeg">
+                        <button data-v="1" class="on">显示</button>
+                        <button data-v="0">隐藏</button>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>网格线型</label>
+                    <div class="fill"><select id="gridStyle" class="neo-select" style="width:100%"></select></div>
+                </div>
+
+                <div class="group-title">整组格子外框（围绕所有格子，线宽向外扩张）</div>
+                <div class="row-item">
+                    <label>外框线型</label>
+                    <div class="fill">
+                        <select id="frameMode" class="neo-select" style="width:100%">
+                            <option value="none">无</option>
+                            <option value="single">单实线</option>
+                            <option value="double">双实线</option>
+                            <option value="innerThin" selected>内细外粗</option>
+                            <option value="innerThick">内粗外细</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row-item" id="pfWidthRow">
+                    <label>粗细</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="pfWidth" min="0.5" max="8" step="0.5" value="4">
+                        <span class="value-tag" id="pfWidthVal">4px</span>
+                    </div>
+                </div>
+                <div class="row-item" id="pfColorRow">
+                    <label>颜色</label>
+                    <div class="fill slider-line">
+                        <input type="color" id="pfColor" value="#ff0000">
+                        <input type="range" id="pfAlpha" min="0" max="1" step="0.05" value="1">
+                        <span class="value-tag" id="pfAlphaVal">100%</span>
+                    </div>
+                </div>
+
+                <div class="group-title">颜色与透明度</div>
+                <div class="row-item">
+                    <label>一键配色</label>
+                    <div class="swatches">
+                        <div class="sw" title="正红" style="background:#ff0000" onclick="usePalette('#ff0000')"></div>
+                        <div class="sw" title="朱砂" style="background:#c0392b" onclick="usePalette('#c0392b')"></div>
+                        <div class="sw" title="胭脂" style="background:#9d2933" onclick="usePalette('#9d2933')"></div>
+                        <div class="sw" title="绛紫" style="background:#684756" onclick="usePalette('#684756')"></div>
+                        <div class="sw" title="墨黑" style="background:#333333" onclick="usePalette('#333333')"></div>
+                        <div class="sw" title="黛蓝" style="background:#2b4c7e" onclick="usePalette('#2b4c7e')"></div>
+                        <div class="sw" title="石青" style="background:#2d5543" onclick="usePalette('#2d5543')"></div>
+                        <div class="sw" title="青灰" style="background:#5b7c99" onclick="usePalette('#5b7c99')"></div>
+                        <div class="sw" title="赭石" style="background:#c48a54" onclick="usePalette('#c48a54')"></div>
+                        <div class="sw" title="鎏金" style="background:#d4af37" onclick="usePalette('#d4af37')"></div>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>字体颜色</label>
+                    <div class="fill slider-line">
+                        <input type="color" id="fontColor" value="#ff0000">
+                        <input type="range" id="fontAlpha" min="0" max="1" step="0.05" value="0.5">
+                        <span class="value-tag" id="fontAlphaVal">50%</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>网格线颜色</label>
+                    <div class="fill slider-line">
+                        <input type="color" id="borderColor" value="#ff0000">
+                        <input type="range" id="borderAlpha" min="0" max="1" step="0.05" value="1">
+                        <span class="value-tag" id="borderAlphaVal">100%</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>内部线条颜色</label>
+                    <div class="fill slider-line">
+                        <input type="color" id="guideColor" value="#ff0000">
+                        <input type="range" id="guideAlpha" min="0" max="1" step="0.05" value="0.2">
+                        <span class="value-tag" id="guideAlphaVal">20%</span>
+                    </div>
+                </div>
+
+                <div class="group-title">线条粗细</div>
+                <div class="row-item">
+                    <label>网格线粗细</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="borderWidth" min="0.5" max="4" step="0.5" value="1">
+                        <span class="value-tag" id="borderWidthVal">1px</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>内部粗细</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="guideWidth" min="0.5" max="2" step="0.25" value="0.75">
+                        <span class="value-tag" id="guideWidthVal">0.75px</span>
+                    </div>
+                </div>
+
+                <div class="group-title">页眉页脚（左/中/右可分别填写）</div>
+                <div class="row-item">
+                    <label>页眉左</label>
+                    <div class="fill"><input id="headerLeft" class="neo slot" style="width:100%" placeholder="留空则不显示"
+                            value="小宇宙字帖生成器"></div>
+                </div>
+                <div class="row-item">
+                    <label>页眉中</label>
+                    <div class="fill"><input id="headerCenter" class="neo slot" style="width:100%" placeholder="留空则不显示"
+                            value="姓名：_______________"></div>
+                </div>
+                <div class="row-item">
+                    <label>页眉右</label>
+                    <div class="fill"><input id="headerRight" class="neo slot" style="width:100%" placeholder="留空则不显示"
+                            value="日期：______年___月___日"></div>
+                </div>
+                <div class="row-item">
+                    <label>页脚左</label>
+                    <div class="fill"><input id="footerLeft" class="neo slot" style="width:100%" placeholder="留空则不显示"
+                            value="www.xiaoyuzhou.com"></div>
+                </div>
+                <div class="row-item">
+                    <label>页脚中</label>
+                    <div class="fill"><input id="footerCenter" class="neo slot" style="width:100%" placeholder="留空则不显示">
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>页脚右</label>
+                    <div class="fill"><input id="footerRight" class="neo slot" style="width:100%" placeholder="留空则不显示">
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>页码位置</label>
+                    <div class="fill">
+                        <select id="pageNoPos" class="neo-select" style="width:100%">
+                            <option value="header-left">页眉左</option>
+                            <option value="header-center">页眉中</option>
+                            <option value="header-right">页眉右</option>
+                            <option value="footer-left">页脚左</option>
+                            <option value="footer-center" selected>页脚中</option>
+                            <option value="footer-right">页脚右</option>
+                            <option value="none">不显示页码</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>页眉页脚字体</label>
+                    <div class="fill"><select id="hfFont" class="neo-select" style="width:100%"></select></div>
+                </div>
+                <div class="row-item">
+                    <label>字号</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="hfSize" min="4" max="10" step="0.5" value="5">
+                        <span class="value-tag" id="hfSizeVal">5.0mm</span>
+                    </div>
+                </div>
+                <div class="row-item">
+                    <label>距格子间距</label>
+                    <div class="fill slider-line">
+                        <input type="range" id="hfGap" min="0" max="4" step="0.5" value="0.5">
+                        <span class="value-tag" id="hfGapVal">0.5mm</span>
+                    </div>
+                </div>
+                <div class="hint" id="slotTip">页码占用的位置会变灰锁定，不能再填写文字。</div>
+            </div>
+        </div>
+
+        <!-- ================= 右侧预览 2/3 ================= -->
+        <div class="preview-wrap">
+            <div class="preview-bar">
+                <span id="scaleTip">预览为等比缩放，打印输出实际A4纸尺寸</span>
+                <span id="pageTip"></span>
+            </div>
+            <div class="page-container" id="book"></div>
+        </div>
+    </div>
+
+    <script>
+        /* ==================== 常量定义 ==================== */
+        const MM = 96 / 25.4;                 /* 毫米转 CSS 像素换算系数（96dpi） */
+        const PAGE_W_MM = 210, PAGE_H_MM = 297;   /* A4 纸张宽高（毫米） */
+        const MARGIN_X = 15;                  /* 左右页边距（毫米） */
+        const AVAIL_W = PAGE_W_MM - MARGIN_X * 2; /* 网格可用宽度 */
+        const GRID_TOP = 15, GRID_BOTTOM = 285;   /* 网格上下边界（毫米） */
+        const AVAIL_H = GRID_BOTTOM - GRID_TOP;   /* 网格可用高度 */
+        const STORE_KEY = 'zitie-config-v9';      /* localStorage 存储键名（升版启用新默认值） */
+        const PX_TO_MM = 25.4 / 96;               /* 像素转毫米系数 */
+
+        /* ==================== 线型预设表（全局复用：网格线 / 内部辅助线 / 外框） ====================
+           dash100：100 单位坐标系（格子内 SVG）下的 dasharray
+           dashMm：毫米坐标系（整页网格 SVG）下的 dasharray
+           cap：线端样式（round 圆点 / butt 方头） */
+        const LINE_STYLES = [
+            {v: 'solid', name: '实线', dash100: 'none', dashMm: 'none', cap: 'butt'},
+            {v: 'dotted', name: '点线', dash100: '0.5 2.6', dashMm: '0.2 1.2', cap: 'round'},
+            {v: 'short', name: '短横线', dash100: '4 3', dashMm: '3 2', cap: 'butt'},
+            {v: 'long', name: '长横线', dash100: '8 3', dashMm: '6 2.5', cap: 'butt'},
+            {v: 'dotshort', name: '点+短划', dash100: '0.5 2.6 4 3', dashMm: '0.2 1.2 3 2', cap: 'round'},
+            {v: 'shortlong', name: '短+长划', dash100: '4 3 8 3', dashMm: '3 2 6 2.5', cap: 'butt'},
+            {v: 'dotlong', name: '点+长划', dash100: '0.5 2.6 8 3', dashMm: '0.2 1.2 6 2.5', cap: 'round'},
+            {v: 'dashdot', name: '点划线', dash100: '8 3 0.5 3', dashMm: '6 2 0.2 2', cap: 'round'}
+        ];
+        /* 按 v 取线型预设，找不到时回退到实线 */
+        const styleOf = v => LINE_STYLES.find(s => s.v === v) || LINE_STYLES[0];
+
+        /* ==================== 原子辅助线 / 形状表 ====================
+           group: line=基础线条（满格，不受尺寸影响）；shape=几何形状（可调尺寸） */
+        const SHAPES = [
+            /* 基础线条 */
+            {v: 'h', name: '单横线', group: 'line', sized: false},
+            {v: 'v', name: '单竖线', group: 'line', sized: false},
+            {v: 'd1', name: '斜线↘', group: 'line', sized: false},
+            {v: 'd2', name: '斜线↗', group: 'line', sized: false},
+            {v: 'jiu', name: '九宫格', group: 'line', sized: false},
+            {v: 'four', name: '四线三格', group: 'line', sized: false},
+            /* 几何形状 */
+            {v: 'hui', name: '回字格', group: 'shape', sized: true},
+            {v: 'circle', name: '圆', group: 'shape', sized: true},
+            {v: 'circle2', name: '双圆', group: 'shape', sized: true},
+            {v: 'octagon', name: '八边形', group: 'shape', sized: true},
+            {v: 'hexagon', name: '六边形', group: 'shape', sized: true},
+            {v: 'pentagon', name: '五边形', group: 'shape', sized: true},
+            {v: 'diamond', name: '正菱形', group: 'shape', sized: true},
+            {v: 'triangle', name: '三角', group: 'shape', sized: true},
+            {v: 'rounded', name: '圆角方框', group: 'shape', sized: true},
+            {v: 'corner', name: '四角短线', group: 'shape', sized: true}
+        ];
+
+        /* ---- 100×100 坐标系下的 SVG 图元生成函数 ---- */
+        /* 数值四舍五入到两位小数，避免坐标过长 */
+        const nf = n => Math.round(n * 100) / 100;
+        /* 生成线段 */
+        const P_L = (x1, y1, x2, y2) => `<line class="ln" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+        /* 生成矩形（rx 为圆角半径） */
+        const P_R = (x, y, w, h, rx) => `<rect class="ln" x="${nf(x)}" y="${nf(y)}" width="${nf(w)}" height="${nf(h)}"${rx ? ` rx="${nf(rx)}"` : ''}/>`;
+        /* 生成圆（圆心固定在 50,50） */
+        const P_C = r => `<circle class="ln" cx="50" cy="50" r="${nf(r)}"/>`;
+        /* 生成多边形 */
+        const P_G = pts => `<polygon class="ln" points="${pts.map(p => nf(p[0]) + ',' + nf(p[1])).join(' ')}"/>`;
+
+        /* 生成正 n 边形顶点（r 为外接圆半径，startDeg 为起始角度） */
+        function regular(n, r, startDeg) {
+            const pts = [];
+            for (let i = 0; i < n; i++) {
+                const a = (startDeg + 360 / n * i) * Math.PI / 180;
+                pts.push([50 + r * Math.cos(a), 50 + r * Math.sin(a)]);
+            }
+            return P_G(pts);
+        }
+
+        /* 把选中的原子项叠画在同一坐标里，互不遮挡 */
+        function shapeSvg(keys, size, styleKey) {
+            if (!keys.length) return '';
+            /* size 限制在 0.2～1 之间，换算成 100 坐标系下的边长 */
+            const S = 100 * Math.min(1, Math.max(0.2, size));
+            const r = S / 2, a = 50 - r, b = 50 + r;
+            const out = [];
+
+            keys.forEach(k => {
+                switch (k) {
+                    /* 满格线条 */
+                    case 'h': out.push(P_L(0, 50, 100, 50)); break;
+                    case 'v': out.push(P_L(50, 0, 50, 100)); break;
+                    case 'd1': out.push(P_L(0, 0, 100, 100)); break;
+                    case 'd2': out.push(P_L(100, 0, 0, 100)); break;
+                    case 'jiu': out.push(P_L(0, 33.33, 100, 33.33), P_L(0, 66.67, 100, 66.67),
+                        P_L(33.33, 0, 33.33, 100), P_L(66.67, 0, 66.67, 100)); break;
+                    case 'four': out.push(P_L(0, 25, 100, 25), P_L(0, 50, 100, 50), P_L(0, 75, 100, 75)); break;
+                    /* 几何形状 */
+                    case 'hui': out.push(P_R(a, a, S, S)); break;
+                    case 'circle': out.push(P_C(r)); break;
+                    case 'circle2': out.push(P_C(r), P_C(r * 0.66)); break;
+                    case 'octagon': {
+                        const c = S * 0.2929;   /* 八边形切角比例系数 */
+                        out.push(P_G([[a + c, a], [b - c, a], [b, a + c], [b, b - c],
+                        [b - c, b], [a + c, b], [a, b - c], [a, a + c]]));
+                        break;
+                    }
+                    case 'hexagon': out.push(regular(6, r, 0)); break;
+                    case 'pentagon': out.push(regular(5, r, -90)); break;
+                    case 'diamond': out.push(P_G([[50, a], [b, 50], [50, b], [a, 50]])); break;
+                    case 'triangle': out.push(regular(3, r, -90)); break;
+                    case 'rounded': out.push(P_R(a, a, S, S, S * 0.15)); break;
+                    case 'corner': {
+                        const LEN = S * 0.26;   /* 四角短线长度 */
+                        out.push(P_L(a, a, a + LEN, a), P_L(a, a, a, a + LEN),
+                            P_L(b, a, b - LEN, a), P_L(b, a, b, a + LEN),
+                            P_L(a, b, a + LEN, b), P_L(a, b, a, b - LEN),
+                            P_L(b, b, b - LEN, b), P_L(b, b, b, b - LEN));
+                        break;
+                    }
+                }
+            });
+
+            /* 线型参数写在 SVG 根节点，被子线条继承；styleKey 对应线型预设 */
+            const st = styleOf(styleKey);
+            const dashAttr = st.dash100 === 'none' ? '' : `stroke-dasharray="${st.dash100}"`;
+            return `<svg class="gs" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"
+        ${dashAttr} stroke-linecap="${st.cap}">${out.join('')}</svg>`;
+        }
+
+        /* 数值夹取：限制在 lo～hi 区间内 */
+        const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+        /* 空心描红字形：以 SVG 文字绘制，stroke 为矢量，PDF 不失真 */
+        function hollowGlyphSvg(txt, fontFamily, fontWeight, colorHex, alpha, strokePx, cellMM) {
+            /* 转义 XML 特殊字符，防止破坏 SVG 结构 */
+            const esc = txt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            /* viewBox 取 100×100，1 单位 = cellMM/100 mm，字号按占格比换算 */
+            const ratio = Math.min(1, Math.max(0.3, Number($('fontRatio').value)));
+            const pct = clampNum(ratio * 98, 20, 100);      /* 100 单位坐标系里的字号 */
+            const swUnit = (strokePx * PX_TO_MM) / (cellMM / 100);  /* px → mm → 用户单位换算 */
+            return `<svg class="glyph-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid meet">
+        <text x="50" y="50" text-anchor="middle" dominant-baseline="central"
+              font-family="${String(fontFamily).replace(/"/g, '').replace(/\s+/g, ' ')}" font-size="${pct}"
+              font-weight="${fontWeight}" fill="none"
+              stroke="${rgba(colorHex, alpha)}" stroke-width="${swUnit.toFixed(3)}"
+              stroke-linejoin="round">${esc}</text>
+    </svg>`;
+        }
+
+        /* ==================== 可选字体表 ==================== */
+        const FONTS = [
+            {v: 'KaiTi, STKaiti, 楷体, serif', name: '楷体', css: 'KaiTi, STKaiti, serif'},
+            {v: 'SimSun, STSong, 宋体, serif', name: '宋体', css: 'SimSun, STSong, serif'},
+            {v: 'SimHei, STHeiti, 黑体, sans-serif', name: '黑体', css: 'SimHei, STHeiti, sans-serif'},
+            {v: 'FangSong, STFangsong, 仿宋, serif', name: '仿宋', css: 'FangSong, STFangsong, serif'},
+            {v: 'Microsoft YaHei, PingFang SC, sans-serif', name: '微软雅黑', css: 'Microsoft YaHei, PingFang SC, sans-serif'},
+            {v: 'STXingkai, 行楷, cursive', name: '华文行楷', css: 'STXingkai, cursive'},
+            {v: 'STLiti, 隶书, serif', name: '华文隶书', css: 'STLiti, serif'}
+        ];
+
+        /* ==================== 默认配置（恢复默认时使用） ==================== */
+        /* 笔画粗细：实心两档（常规 / 加粗）；空心描红两档（细 / 常规） */
+        const STROKE_SETS = {
+            solid: [{name: '常规', weight: 400}, {name: '加粗', weight: 700}],
+            hollow: [{name: '细', weight: 400, hollow: 0.3}, {name: '常规', weight: 400, hollow: 0.7}]
+        };
+        function currentStrokeSet() {return shape === 'hollow' ? STROKE_SETS.hollow : STROKE_SETS.solid;}
+        function currentStroke() {
+            const set = currentStrokeSet();
+            return set[Math.min(set.length - 1, Math.max(0, strokeLevel))];
+        }
+
+        const DEFAULTS = {
+            selShapes: ['h', 'v', 'd1', 'd2', 'octagon'],
+            fontFamily: 'KaiTi, STKaiti, 楷体, serif',
+            customFont: '',
+            cols: 12,
+            fontRatio: 0.80, shape: 'solid', strokeLevel: 0,
+            fontColor: '#ff0000', fontAlpha: 0.5,
+            borderColor: '#ff0000', borderAlpha: 1,
+            guideColor: '#ff0000', guideAlpha: 0.2, guideStyle: 'short',
+            shapeSize: 70,
+            borderWidth: 1, guideWidth: 0.75,
+            showH: 1, showV: 1, gridStyle: 'solid',
+            pageBorder: 'innerThin', pfWidth: 4,
+            pfColor: '#ff0000', pfAlpha: 1,
+            headerLeft: '小宇宙字帖生成器', headerCenter: '姓名：_______________', headerRight: '日期：______年___月___日',
+            footerLeft: 'www.xiaoyuzhou.com', footerCenter: '', footerRight: '',
+            pageNoPos: 'footer-center',
+            preserveBreak: 1, indent: 2, centerFirst: 1,
+            hfFont: FONTS[0].v, hfSize: 5, hfGap: 0.5
+        };
+
+        /* ==================== 全局状态变量 ==================== */
+        let shape = 'solid';          /* 字形：solid 实心 / hollow 空心描红 */
+        let strokeLevel = 0;          /* 笔画粗细档位：0 细 / 1 常规 / 2 粗 */
+        let centerFirst = 1;          /* 首段居中：1 自动按字数居中 / 0 关闭 */
+        let preserveBreak = 1;       /* 换行处理：0 连续排 / 1 换行即换行 */
+        let selShapes = ['h', 'v', 'd1', 'd2'];  /* 已选线条/形状 key 列表 */
+        let guideStyle = 'short';     /* 内部辅助线线型预设 */
+        let showH = 1;                /* 全局网格线：横线显隐 */
+        let showV = 1;                /* 全局网格线：竖线显隐 */
+        let gridStyle = 'solid';      /* 全局网格线线型预设 */
+        let pageBorder = 'single';    /* 整组外框线型：none/single/double/innerThin/innerThick */
+        let fontFamily = FONTS[0].v;  /* 当前字体栈 */
+
+        /* 工具：按 id 取元素 */
+        const $ = id => document.getElementById(id);
+        /* 十六进制颜色转 rgb 三元组字符串 */
+        const hexToRgb = h => `${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)}`;
+        /* 生成 rgba 颜色字符串 */
+        const rgba = (h, a) => `rgba(${hexToRgb(h)}, ${a})`;
+        /* 小数转百分比字符串 */
+        const pct = v => Math.round(v * 100) + '%';
+
+        /* ==================== 下拉交互 ==================== */
+        /* 切换指定下拉的展开/收起状态，同时关闭其它下拉 */
+        function toggleDd(id) {
+            const el = $(id);
+            const willOpen = !el.classList.contains('open');
+            document.querySelectorAll('.dd').forEach(d => d.classList.remove('open'));
+            if (willOpen) el.classList.add('open');
+        }
+        /* 点击页面空白处时关闭所有下拉 */
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.dd')) document.querySelectorAll('.dd').forEach(d => d.classList.remove('open'));
+        });
+
+        /* ==================== 线型下拉填充 ==================== */
+        /* 把线型预设填入指定 select，并选中 current 项 */
+        function fillStyleSelect(sel, current) {
+            sel.innerHTML = '';
+            LINE_STYLES.forEach(s => {
+                const op = document.createElement('option');
+                op.value = s.v; op.innerText = s.name;
+                if (s.v === current) op.selected = true;
+                sel.appendChild(op);
+            });
+        }
+
+        /* ---- 原子项 chips 渲染 ---- */
+        function buildShapeChips() {
+            const lineBox = $('lineChips'), shapeBox = $('shapeChips');
+            lineBox.innerHTML = ''; shapeBox.innerHTML = '';
+            SHAPES.forEach(sp => {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'chip' + (selShapes.includes(sp.v) ? ' on' : '');
+                chip.dataset.v = sp.v;
+                chip.onclick = () => toggleShape(sp.v);
+
+                /* 迷你方格预览 */
+                const mini = document.createElement('span');
+                mini.className = 'mini-cell';
+                mini.innerHTML = shapeSvg([sp.v], Number($('shapeSize').value) / 100, guideStyle);
+
+                const nm = document.createElement('span');
+                nm.innerText = sp.name;
+
+                chip.appendChild(mini); chip.appendChild(nm);
+                (sp.group === 'line' ? lineBox : shapeBox).appendChild(chip);
+            });
+            syncChips();
+        }
+
+        /* 点击 chip：选中则取消，未选则加入 */
+        function toggleShape(v) {
+            selShapes = selShapes.includes(v) ? selShapes.filter(x => x !== v) : selShapes.concat(v);
+            syncChips(); render();
+        }
+
+        /* 应用预设组合（米字格 / 田字格 / X 格） */
+        function applyPreset(arr) {
+            selShapes = arr.slice();
+            syncChips(); render();
+        }
+
+        /* 清空全部已选样式 */
+        function clearShapes() {
+            selShapes = [];
+            syncChips(); render();
+        }
+
+        /* 同步 chips 选中态与统计文案，未选时禁用尺寸/线型选项 */
+        function syncChips() {
+            document.querySelectorAll('.chip[data-v]').forEach(ch => {
+                ch.classList.toggle('on', selShapes.includes(ch.dataset.v));
+            });
+            $('shapeMeta').innerText = selShapes.length ? `已选 ${selShapes.length} 项` : '未选任何样式（空白格）';
+            ['shapeSizeRow', 'guideStyleRow'].forEach(id => $(id).classList.toggle('dim', !selShapes.length));
+        }
+
+        /* 刷新所有 chip 迷你预览（尺寸或线型变化时调用） */
+        function refreshChipPreview() {
+            const size = Number($('shapeSize').value) / 100;
+            document.querySelectorAll('.chip .mini-cell').forEach((m, i) => {
+                m.innerHTML = shapeSvg([SHAPES[i].v], size, guideStyle);
+            });
+        }
+
+        /* ---- 字体下拉菜单渲染 ---- */
+        function buildFontMenu() {
+            const menu = $('fontMenu');
+            menu.innerHTML = '';
+            FONTS.forEach(f => {
+                const li = document.createElement('li');
+                li.dataset.v = f.v;
+                li.onclick = () => setFont(f.v);
+                const txt = document.createElement('span');
+                txt.className = 'dd-txt';
+                txt.innerHTML = `<span style="font-family:${f.css};font-size:15px">${f.name}</span><small>按该字体渲染预览</small>`;
+                li.appendChild(txt); menu.appendChild(li);
+            });
+            syncFont();
+        }
+
+        /* 选中字体并刷新 */
+        function setFont(v) {
+            fontFamily = v;
+            syncFont();
+            document.querySelectorAll('.dd').forEach(d => d.classList.remove('open'));
+            render();
+        }
+
+        /* 页眉页脚字体下拉渲染 */
+        function buildHfFontMenu() {
+            const sel = $('hfFont');
+            sel.innerHTML = '';
+            FONTS.forEach(f => {
+                const op = document.createElement('option');
+                op.value = f.v; op.innerText = f.name;
+                sel.appendChild(op);
+            });
+        }
+
+        /* 同步字体下拉的显示文字、字体预览与选中项 */
+        function syncFont() {
+            const f = FONTS.find(x => x.v === fontFamily) || FONTS[0];
+            $('fontFamily').value = fontFamily;
+            $('fontLabel').innerText = f.name;
+            $('fontLabel').style.fontFamily = f.css;
+            $('fontMenu').querySelectorAll('li').forEach(li => li.classList.toggle('sel', li.dataset.v === fontFamily));
+        }
+
+        /* ==================== 分段按钮组通用绑定 ==================== */
+        /* id: 分段组容器；cb: 点击后回调选中值 */
+        function bindSeg(id, cb) {
+            const el = $(id);
+            el.querySelectorAll('button').forEach(btn => {
+                btn.onclick = () => {
+                    el.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+                    btn.classList.add('on');
+                    cb(btn.dataset.v);
+                };
+            });
+        }
+        bindSeg('shapeSeg', v => {shape = v; strokeLevel = v === 'hollow' ? 1 : 0; syncStrokeMarks(); render();});
+        bindSeg('breakSeg', v => {preserveBreak = Number(v); render();});
+        bindSeg('centerFirstSeg', v => {centerFirst = Number(v); render();});
+        bindSeg('showHSeg', v => {showH = Number(v); render();});
+        bindSeg('showVSeg', v => {showV = Number(v); render();});
+        /* 整组外框线型：下拉选择（无 / 单实线 / 双实线 / 内细外粗 / 内粗外细） */
+        $('frameMode').addEventListener('change', e => {pageBorder = e.target.value; render();});
+
+        /* 线型下拉变化监听 */
+        $('gridStyle').addEventListener('change', e => {gridStyle = e.target.value; render();});
+        $('guideStyle').addEventListener('change', e => {guideStyle = e.target.value; refreshChipPreview(); render();});
+
+        /* ==================== 滑块绑定 ==================== */
+        /* 每项：[输入框 id, 数值格式化函数]，输入时更新标签并重新渲染 */
+        const sliders = [
+            ['fontRatio', pct],
+            ['fontAlpha', pct],
+            ['borderAlpha', pct],
+            ['guideAlpha', pct],
+            ['borderWidth', v => v + 'px'],
+            ['guideWidth', v => v + 'px'],
+            ['pfWidth', v => v + 'px'],
+            ['pfAlpha', pct],
+            ['hfSize', v => v.toFixed(1) + 'mm'],
+            ['hfGap', v => v.toFixed(1) + 'mm']
+        ];
+        sliders.forEach(([id, fmt]) => {
+            const input = $(id), tag = $(id + 'Val');
+            input.oninput = () => {tag.innerText = fmt(Number(input.value)); render();};
+        });
+
+        /* 笔画粗细滑块：档位随字形切换（实心 常规/加粗，空心 细/常规） */
+        function syncStrokeMarks() {
+            const set = currentStrokeSet();
+            strokeLevel = Math.min(set.length - 1, Math.max(0, strokeLevel));
+            const marksEl = $('strokeMarks');
+            marksEl.innerHTML = set.map((x, i) =>
+                `<span class="${i === strokeLevel ? 'on' : ''}">${x.name}</span>`).join('');
+            $('strokeLevel').max = set.length - 1;
+            $('strokeLevel').value = strokeLevel;
+            if ($('strokeLevelVal')) {
+                const hollow = shape === 'hollow';
+                $('strokeLevelVal').style.display = hollow ? 'none' : '';
+                $('strokeLevelVal').innerText = hollow ? '' : set[strokeLevel].weight;
+            }
+        }
+        $('strokeLevel').oninput = () => {
+            strokeLevel = Number($('strokeLevel').value);
+            syncStrokeMarks();
+            render();
+        };
+
+        /* 形状尺寸滑块：同时刷新 chip 预览 */
+        $('shapeSize').oninput = () => {
+            $('shapeSizeVal').innerText = pct(Number($('shapeSize').value) / 100);
+            refreshChipPreview();
+            render();
+        };
+        /* 页码位置变化：锁定对应栏目并重新渲染 */
+        $('pageNoPos').addEventListener('change', () => {syncSlots(); render();});
+
+        /* ==================== 一键配色 ==================== */
+        /* 把字体/网格线/内部线条统一设为同一颜色 */
+        function usePalette(color) {
+            $('fontColor').value = color;
+            $('borderColor').value = color;
+            $('guideColor').value = color;
+            $('pfColor').value = color;
+            render();
+        }
+
+        /* ==================== 页眉页脚三栏 ==================== */
+        const SLOT_IDS = ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'];
+        const V = id => $(id).value;
+        /* 输入框 id 转成页码位置值（如 headerLeft → header-left） */
+        const idToPos = id => id.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+
+        /* 页码占用的那一栏锁死，不能再填文字 */
+        function syncSlots() {
+            const pos = $('pageNoPos').value;
+            SLOT_IDS.forEach(id => {
+                const el = $(id);
+                const used = pos === idToPos(id);
+                el.disabled = used;
+                el.placeholder = used ? '页码占用，不可填写' : '留空则不显示';
+                el.title = used ? '该位置已被页码占用，请换一栏或改页码位置' : '';
+            });
+            $('slotTip').innerText = pos === 'none'
+                ? '当前不显示页码，六栏均可自由填写。'
+                : '页码占用了「' + $('pageNoPos').selectedOptions[0].textContent + '」，该栏已锁定，不可再填写文字。';
+        }
+
+        /* 生成页眉/页脚条；kind: header/footer；slots: 左中右文字数组 */
+        function makeBar(kind, slots, pos, pageNo, totalPages, hfFont, hfSize, topMM) {
+            const names = ['left', 'center', 'right'];
+            const usedIdx = (pos !== 'none' && pos.startsWith(kind)) ? names.indexOf(pos.split('-')[1]) : -1;
+            /* 没有页码占用且三栏都为空时，不输出这条页眉/页脚 */
+            if (usedIdx < 0 && !slots.some(t => t.trim())) return null;
+
+            const bar = document.createElement('div');
+            bar.className = 'bar ' + kind;
+            bar.style.height = hfSize + 'mm';
+            bar.style.fontSize = (hfSize * 0.78) + 'mm';
+            bar.style.fontFamily = hfFont;
+            bar.style.top = topMM + 'mm';
+            slots.forEach((txt, i) => {
+                const sp = document.createElement('span');
+                if (i === usedIdx) {
+                    /* 被页码占用的栏位显示页码 */
+                    sp.className = 'page-no';
+                    sp.innerText = `第${pageNo}页 共${totalPages}页`;
+                } else {
+                    sp.innerText = txt;
+                }
+                bar.appendChild(sp);
+            });
+            return bar;
+        }
+
+        /* 页眉页脚自适应：字号偏大或文字过长时，按需缩小该条字号，避免被裁切 */
+        function fitBars(page) {
+            page.querySelectorAll('.bar').forEach(bar => {
+                const spans = [...bar.querySelectorAll('span')];
+                let size = parseFloat(bar.style.fontSize) || 0;
+                for (let k = 0; k < 4; k++) {
+                    const need = Math.min(...spans.map(s => s.clientWidth / (s.scrollWidth || 1)));
+                    if (!isFinite(need) || need >= 0.995 || size <= 0) break;
+                    size = size * need * 0.98;
+                    bar.style.fontSize = size.toFixed(2) + 'mm';
+                }
+            });
+        }
+
+        /* ==================== 文本切分 ==================== */
+        /* 把字帖文本拆成逐字数组；cols 为每行字数，indent 为首行缩进字数 */
+        function buildChars(text, cols) {
+            const indent = Math.max(0, Math.min(cols, Number($('indent').value) || 0));
+            /* 连续排：去掉所有空白后逐字拆分 */
+            if (!preserveBreak) return text.replace(/\s+/g, '').split('');
+
+            const out = [];
+            const lines = text.replace(/\r/g, '').split('\n');
+            /* 首段 = 开头到第一个空行之前的若干行，可整体按字数居中 */
+            let inFirst = !!centerFirst;
+            const cellW = ch => (ch.charCodeAt(0) < 128 ? 0.5 : 1);   /* 半角算半格，其余整格 */
+            lines.forEach(raw => {
+                const chars = raw.trim().split('');
+                /* 空行：补满一整行空格占位，并且首段到此结束 */
+                if (!chars.length) {
+                    inFirst = false;
+                    for (let i = 0; i < cols; i++) out.push('');
+                    return;
+                }
+                let lead = indent;                               /* 默认首行缩进 */
+                if (inFirst) {
+                    if (/^\s/.test(raw)) {
+                        /* 行首已有空格：按用户手动补齐的空格排（空格补齐优先） */
+                        lead = raw.length - raw.replace(/^\s+/, '').length;
+                        const used = out.length % cols;
+                        for (let i = 0; i < Math.min(lead, cols - used); i++) out.push('');
+                    } else {
+                        /* 自动居中：按该行实际字宽计算留白 */
+                        const w = chars.reduce((a, c) => a + cellW(c), 0);
+                        lead = Math.max(0, Math.floor((cols - w) / 2));
+                        for (let i = 0; i < lead; i++) out.push('');
+                    }
+                } else {
+                    for (let i = 0; i < indent; i++) out.push('');  /* 首行缩进 */
+                }
+                chars.forEach(c => out.push(c));
+                /* 不满一行补空格，保证每行字数对齐 */
+                while (out.length % cols !== 0) out.push('');
+            });
+            return out;
+        }
+
+        /* ==================== 全局网格线 SVG 生成 ====================
+           在网格区域内统一绘制横线、竖线；坐标单位为毫米，与页面网格对齐 */
+        function buildGridLines(gridW, gridH, cell, opt) {
+            const st = styleOf(opt.style);
+            const dashAttr = st.dashMm === 'none' ? '' : `stroke-dasharray="${st.dashMm}"`;
+            const capAttr = `stroke-linecap="${st.cap}"`;
+            let lines = '';
+
+            /* 横线：rows+1 条，覆盖网格上下边界 */
+            if (opt.showH) {
+                for (let r = 0; r <= opt.rows; r++) {
+                    const y = nf(r * cell);
+                    lines += `<line x1="0" y1="${y}" x2="${nf(gridW)}" y2="${y}"
+                stroke="${opt.color}" stroke-width="${opt.widthMm}" ${dashAttr} ${capAttr}/>`;
+                }
+            }
+            /* 竖线：cols+1 条，覆盖网格左右边界 */
+            if (opt.showV) {
+                for (let c = 0; c <= opt.cols; c++) {
+                    const x = nf(c * cell);
+                    lines += `<line x1="${x}" y1="0" x2="${x}" y2="${nf(gridH)}"
+                stroke="${opt.color}" stroke-width="${opt.widthMm}" ${dashAttr} ${capAttr}/>`;
+                }
+            }
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'grid-lines');
+            svg.setAttribute('viewBox', `0 0 ${nf(gridW)} ${nf(gridH)}`);
+            svg.style.width = nf(gridW) + 'mm';    /* 显式宽高，避免 SVG 默认 300×150 拉伸 */
+            svg.style.height = nf(gridH) + 'mm';
+            svg.innerHTML = lines;
+            return svg;
+        }
+
+        /* ==================== 整组格子外框（SVG，线宽全部向外扩张） ====================
+           mode: single 单实线 / double 双实线 / innerThin 内细外粗 / innerThick 内粗外细
+           widthPx: 基准粗细（像素），换算为毫米后全部画在格子外侧
+           返回 { svg, pad }，pad 为向外扩张的总厚度（毫米），用于定位与版面留白 */
+        function frameLines(mode, widthPx) {
+            const w = Math.max(0.3, widthPx) * PX_TO_MM;   /* 基准线宽（毫米） */
+            const gap = Math.max(0.7, w * 0.6);            /* 双线 / 内外线之间的净间隔 */
+
+            let lines = [];   /* 每条线：off 为从格子边缘向外的起点，w 为线宽 */
+            if (mode === 'single') {
+                lines = [{w: w, off: 0}];
+            } else if (mode === 'double') {
+                lines = [{w: w * 0.6, off: 0},
+                {w: w * 0.6, off: w * 0.6 + gap}];
+            } else if (mode === 'innerThin') {
+                lines = [{w: w * 0.45, off: 0},
+                {w: w * 1.15, off: w * 0.45 + gap}];
+            } else if (mode === 'innerThick') {
+                lines = [{w: w * 1.15, off: 0},
+                {w: w * 0.45, off: w * 1.15 + gap}];
+            }
+            const pad = lines.length ? lines.reduce((m, l) => Math.max(m, l.off + l.w), 0) + 0.4 : 0;
+            return {lines, pad};
+        }
+
+        function buildFrame(gridW, gridH, mode, widthPx, color) {
+            const {lines, pad} = frameLines(mode, widthPx);
+            if (!lines.length) return {svg: null, pad: 0};
+
+            const boxW = gridW + pad * 2, boxH = gridH + pad * 2;
+
+            /* 描边以路径为中心向两侧各展开 w/2，故路径需外移 off + w/2，线才整体落在格子外侧 */
+            const parts = lines.map(l => {
+                const d = l.off + l.w / 2;
+                return `<rect x="${nf(pad - d)}" y="${nf(pad - d)}"
+            width="${nf(boxW - 2 * (pad - d))}" height="${nf(boxH - 2 * (pad - d))}"
+            fill="none" stroke="${color}" stroke-width="${nf(l.w)}"/>`;
+            }).join('');
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('class', 'frame-svg');
+            svg.setAttribute('viewBox', `0 0 ${nf(boxW)} ${nf(boxH)}`);
+            svg.style.width = boxW + 'mm';
+            svg.style.height = boxH + 'mm';
+            svg.innerHTML = parts;
+            return {svg, pad};
+        }
+
+        /* ==================== 主渲染函数 ==================== */
+        function render() {
+            const content = $('content').value;
+            const pageNoPos = $('pageNoPos').value;
+            const headerSlots = [V('headerLeft'), V('headerCenter'), V('headerRight')];
+            const footerSlots = [V('footerLeft'), V('footerCenter'), V('footerRight')];
+            const customFont = $('customFont').value.trim();
+            /* 自定义字体优先，其次使用内置字体栈 */
+            const ff = customFont ? `"${customFont}", ${fontFamily}` : fontFamily;
+
+            const ratio = Math.min(1, Math.max(0.3, Number($('fontRatio').value)));
+            const fontColor = $('fontColor').value;
+            const fontAlpha = Number($('fontAlpha').value);
+            const gridColor = $('borderColor').value;
+            const gridAlpha = Number($('borderAlpha').value);
+            const guideColor = $('guideColor').value;
+            const guideAlpha = Number($('guideAlpha').value);
+            const gridWidth = Number($('borderWidth').value);
+            const guideWidth = Number($('guideWidth').value);
+            const shapeSize = Math.min(1, Math.max(0.2, Number($('shapeSize').value) / 100));
+            const pfColor = $('pfColor').value;
+            const pfAlpha = Number($('pfAlpha').value);
+            const pfWidth = Number($('pfWidth').value);
+            const hfFont = $('hfFont').value;
+            const hfSize = Math.min(10, Math.max(4, Number($('hfSize').value)));
+            const hfGap = Math.min(4, Math.max(0, Number($('hfGap').value)));
+            const innerSvg = shapeSvg(selShapes, shapeSize, guideStyle);
+            const strokeInfo = currentStroke();   /* 当前笔画档位（实心/空心各有两档） */
+
+            /* 未选整组外框时，禁用其样式/粗细/颜色选项 */
+            ['pfWidthRow', 'pfColorRow'].forEach(id =>
+                $(id).classList.toggle('dim', pageBorder === 'none'));
+
+            /* 每行字数限制在 6～20 */
+            const cols = Math.min(20, Math.max(3, parseInt($('cols').value, 10) || 12));
+            const cell = AVAIL_W / cols;   /* 单个方格边长（毫米） */
+            /* 页眉页脚与整组外框保持 hfGap 的净间距，贴紧边框 */
+            const framePad = pageBorder === 'none' ? 0 : frameLines(pageBorder, pfWidth).pad;
+            const HDR_TOP = 6, FOOT_BOTTOM = 6;      /* 页眉 / 页脚距纸边的起始留白 */
+            const bookH = PAGE_H_MM - HDR_TOP - FOOT_BOTTOM;
+            /* 竖向构成：页眉 + 间距 + 外框 + 格子 + 外框 + 间距 + 页脚，多出高度上下均分 */
+            const availH = Math.max(20, bookH - 2 * (hfSize + hfGap + framePad));
+            const rows = Math.max(1, Math.floor(availH / cell));   /* 每页行数（自动计算） */
+            const gridW = cols * cell;
+            const gridH = rows * cell;
+            const gridLeft = MARGIN_X + (AVAIL_W - gridW) / 2;    /* 网格水平居中 */
+            const freeH = Math.max(0, bookH - (2 * hfSize + 2 * hfGap + 2 * framePad + gridH));
+            const headTop = HDR_TOP + freeH / 2;
+            const gridTop = headTop + hfSize + hfGap + framePad;  /* 网格顶边（含外框厚度） */
+            const footTop = gridTop + gridH + framePad + hfGap;  /* 页脚顶边 */
+            const fontSizeCm = (cell * ratio) / 10;              /* 字号（厘米） */
+
+            $('layoutInfo').innerText = `格子 ${cell.toFixed(1)}mm · 每页 ${rows} 行（自动）`;
+
+            const chars = buildChars(content, cols);
+            const perPage = cols * rows;                            /* 每页字数 */
+            const totalPages = Math.max(1, Math.ceil(chars.length / perPage));
+
+            const bookEl = $('book');
+            bookEl.innerHTML = '';
+
+            /* 预览缩放：按右侧容器宽度等比缩小，打印时仍为真实 A4 尺寸 */
+            const avail = (bookEl.clientWidth || window.innerWidth) - 4;
+            const scale = Math.min(1, Math.max(0.25, avail / (PAGE_W_MM * MM)));
+
+            for (let pageNo = 1; pageNo <= totalPages; pageNo++) {
+                /* 外层包裹：按缩放后尺寸占位 */
+                const wrap = document.createElement('div');
+                wrap.className = 'page-wrap';
+                wrap.style.width = (PAGE_W_MM * MM * scale) + 'px';
+                wrap.style.height = (PAGE_H_MM * MM * scale) + 'px';
+
+                /* 内层 A4 页面 */
+                const page = document.createElement('div');
+                page.className = 'a4-page';
+                page.style.transform = `scale(${scale})`;
+                page.style.setProperty('--guide-color', rgba(guideColor, guideAlpha));
+                page.style.setProperty('--guide-w', guideWidth + 'px');
+                page.style.setProperty('--cell', cell + 'mm');
+
+                /* 页眉 */
+                const hb = makeBar('header', headerSlots, pageNoPos, pageNo, totalPages, hfFont, hfSize, headTop);
+                if (hb) page.appendChild(hb);
+
+                /* 字帖网格（只摆放文字与内部辅助线，不含边框） */
+                const grid = document.createElement('div');
+                grid.className = 'grid';
+                grid.style.left = gridLeft + 'mm';
+                grid.style.top = gridTop + 'mm';
+                grid.style.width = gridW + 'mm';
+                for (let r = 0; r < rows; r++) {
+                    const row = document.createElement('div');
+                    row.className = 'row';
+                    for (let c = 0; c < cols; c++) {
+                        const idx = (pageNo - 1) * perPage + r * cols + c;
+                        const cellEl = document.createElement('div');
+                        cellEl.className = 'cell';
+                        if (innerSvg) cellEl.insertAdjacentHTML('beforeend', innerSvg);
+
+                        const t = chars[idx] || '';
+                        if (t) {
+                            if (shape === 'hollow') {
+                                /* 空心描红：SVG <text> 的 stroke 在 PDF 里是真正的矢量路径，
+                                   比 CSS -webkit-text-stroke 打印更清晰不失真 */
+                                cellEl.insertAdjacentHTML('beforeend',
+                                    hollowGlyphSvg(t, ff, strokeInfo.weight, fontColor, fontAlpha,
+                                        strokeInfo.hollow, cell));
+                            } else {
+                                /* 实心：普通 span 文字 */
+                                const ch = document.createElement('span');
+                                ch.innerText = t;
+                                ch.style.fontFamily = ff;
+                                ch.style.fontSize = fontSizeCm.toFixed(3) + 'cm';
+                                ch.style.fontWeight = strokeInfo.weight;
+                                ch.style.color = rgba(fontColor, fontAlpha);
+                                cellEl.appendChild(ch);
+                            }
+                        }
+                        row.appendChild(cellEl);
+                    }
+                    grid.appendChild(row);
+                }
+                page.appendChild(grid);
+
+                /* 全局网格线图层：统一横线 / 竖线，覆盖整个网格区域 */
+                const gridLines = buildGridLines(gridW, gridH, cell, {
+                    showH: showH === 1, showV: showV === 1,
+                    style: gridStyle,
+                    color: rgba(gridColor, gridAlpha),
+                    widthMm: (gridWidth * PX_TO_MM).toFixed(3),
+                    rows, cols
+                });
+                gridLines.style.left = gridLeft + 'mm';
+                gridLines.style.top = gridTop + 'mm';
+                page.appendChild(gridLines);
+
+                /* 整组格子外框：SVG 画在格子外侧，线宽向外扩张，不侵占格子区域 */
+                if (pageBorder !== 'none') {
+                    const {svg, pad} = buildFrame(gridW, gridH, pageBorder, pfWidth, rgba(pfColor, pfAlpha));
+                    svg.style.left = (gridLeft - pad) + 'mm';
+                    svg.style.top = (gridTop - pad) + 'mm';
+                    page.appendChild(svg);
+                }
+
+                /* 页脚 */
+                const fb = makeBar('footer', footerSlots, pageNoPos, pageNo, totalPages, hfFont, hfSize, footTop);
+                if (fb) page.appendChild(fb);
+
+                wrap.appendChild(page);
+                bookEl.appendChild(wrap);
+                fitBars(page);   /* 页眉页脚超出栏宽时自动缩小字号 */
+            }
+
+            /* 状态栏：总页数、每页行列数、有效字数 */
+            const totalChars = chars.filter(c => c).length;
+            $('pageTip').innerText = `共 ${totalPages} 页 · 每页 ${rows} 行 × ${cols} 字 · ${totalChars} 字`;
+            $('scaleTip').innerText = scale < 1
+                ? `预览缩放 ${Math.round(scale * 100)}%，打印为实际 A4`
+                : '预览为等比例缩放尺寸，打印实际输出 A4 纸尺寸（210mm × 297mm）';
+
+            saveConfig();
+        }
+
+        /* ==================== 配置持久化 ==================== */
+        /* 收集当前所有配置项为对象 */
+        function collectConfig() {
+            return {
+                content: $('content').value,
+                selShapes, guideStyle, gridStyle, pageBorder, fontFamily,
+                customFont: $('customFont').value,
+                cols: $('cols').value,
+                fontRatio: $('fontRatio').value,
+                shape, strokeLevel,
+                fontColor: $('fontColor').value, fontAlpha: $('fontAlpha').value,
+                borderColor: $('borderColor').value, borderAlpha: $('borderAlpha').value,
+                guideColor: $('guideColor').value, guideAlpha: $('guideAlpha').value,
+                shapeSize: $('shapeSize').value,
+                borderWidth: $('borderWidth').value, guideWidth: $('guideWidth').value,
+                showH, showV,
+                pfColor: $('pfColor').value, pfAlpha: $('pfAlpha').value,
+                pfWidth: $('pfWidth').value,
+                headerLeft: $('headerLeft').value, headerCenter: $('headerCenter').value, headerRight: $('headerRight').value,
+                footerLeft: $('footerLeft').value, footerCenter: $('footerCenter').value, footerRight: $('footerRight').value,
+                pageNoPos: $('pageNoPos').value,
+                hfFont: $('hfFont').value, hfSize: $('hfSize').value, hfGap: $('hfGap').value,
+                preserveBreak, indent: $('indent').value, centerFirst
+            };
+        }
+        /* 保存配置到 localStorage */
+        function saveConfig() {
+            try {localStorage.setItem(STORE_KEY, JSON.stringify(collectConfig()));} catch (e) { }
+        }
+
+        /* 旧版复合类型 → 原子项映射（兼容历史存档） */
+        const LEGACY_MAP = {
+            mi: ['h', 'v', 'd1', 'd2'],
+            tian: ['h', 'v'],
+            x: ['d1', 'd2'],
+            blank: []
+        };
+
+        /* 旧版线型值映射到新线型预设（dashed→短划，dotted→点线，其余原样保留） */
+        function mapLegacyStyle(v) {
+            if (!v) return 'solid';
+            if (v === 'dashed') return 'short';
+            return LINE_STYLES.some(s => s.v === v) ? v : 'solid';
+        }
+
+        /* 把存档配置回填到界面控件 */
+        function applyConfig(cfg) {
+            if (!cfg) return;
+            /* 普通输入框类配置直接赋值 */
+            ['content', 'customFont', 'cols', 'fontRatio', 'fontColor', 'fontAlpha', 'borderColor', 'borderAlpha',
+                'guideColor', 'guideAlpha', 'borderWidth', 'guideWidth', 'shapeSize', 'pfColor', 'pfAlpha', 'pfWidth',
+                'headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight',
+                'pageNoPos', 'indent', 'hfFont', 'hfSize', 'hfGap'].forEach(k => {
+                    if (cfg[k] !== undefined && $(k)) $(k).value = cfg[k];
+                });
+
+            /* 已选样式：新格式为原子项数组，旧格式为复合类型 */
+            if (Array.isArray(cfg.selShapes)) {
+                selShapes = cfg.selShapes.filter(v => SHAPES.some(x => x.v === v));
+            } else if (cfg.gridType && LEGACY_MAP[cfg.gridType]) {
+                selShapes = LEGACY_MAP[cfg.gridType].slice();
+            }
+
+            /* 线型 / 显隐状态回填 */
+            guideStyle = mapLegacyStyle(cfg.guideStyle);
+            gridStyle = mapLegacyStyle(cfg.gridStyle || cfg.borderStyle);
+            showH = cfg.showH !== undefined ? Number(cfg.showH) : 1;
+            showV = cfg.showV !== undefined ? Number(cfg.showV) : 1;
+            centerFirst = cfg.centerFirst !== undefined ? Number(cfg.centerFirst) : 1;
+
+            /* 整组外框线型回填（兼容旧版 none/single/double 存档） */
+            const LEGACY_FRAME = {solid: 'single', dashed: 'single', dotted: 'single'};
+            const fr = cfg.frameMode || cfg.pageBorder || 'single';
+            pageBorder = LEGACY_FRAME[fr] || fr;
+            if (!['none', 'single', 'double', 'innerThin', 'innerThick'].includes(pageBorder)) pageBorder = 'single';
+
+            /* 旧版单段页眉页脚 → 新三栏（放到中栏） */
+            if (cfg.headerText !== undefined && cfg.headerCenter === undefined) $('headerCenter').value = cfg.headerText;
+            if (cfg.footerText !== undefined && cfg.footerCenter === undefined) $('footerCenter').value = cfg.footerText;
+
+            if (cfg.fontFamily) fontFamily = cfg.fontFamily;
+
+            /* 字形与字重回填 */
+            if (cfg.shape) {
+                shape = cfg.shape;
+                $('shapeSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === shape));
+            }
+            /* 笔画档位回填：优先新字段，兼容旧版 weight / hollowW 取值 */
+            if (cfg.strokeLevel !== undefined) {
+                strokeLevel = Math.min(1, Math.max(0, Number(cfg.strokeLevel)));
+            } else {
+                const LEGACY_W = {normal: 400, bold: 700};
+                const oldW = LEGACY_W[cfg.weight] || Number(cfg.weight) || 400;
+                strokeLevel = oldW <= 330 ? 0 : (oldW >= 600 ? 1 : 0);
+            }
+            $('strokeLevel').value = strokeLevel;
+            syncStrokeMarks();
+            if (cfg.preserveBreak !== undefined) {
+                preserveBreak = Number(cfg.preserveBreak);
+                $('breakSeg').querySelectorAll('button').forEach(b =>
+                    b.classList.toggle('on', Number(b.dataset.v) === preserveBreak));
+            }
+            $('centerFirstSeg').querySelectorAll('button').forEach(b =>
+                b.classList.toggle('on', Number(b.dataset.v) === centerFirst));
+
+            /* 回填分段按钮选中态 */
+            $('showHSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === showH));
+            $('showVSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === showV));
+            $('frameMode').value = pageBorder;
+
+            /* 填充线型下拉并选中当前项 */
+            fillStyleSelect($('guideStyle'), guideStyle);
+            fillStyleSelect($('gridStyle'), gridStyle);
+
+            /* 刷新所有滑块数值标签 */
+            sliders.forEach(([id, fmt]) => $(id + 'Val').innerText = fmt(Number($(id).value)));
+            $('shapeSizeVal').innerText = pct(Number($('shapeSize').value) / 100);
+            syncSlots();
+            buildShapeChips();
+            syncFont();
+        }
+
+        /* 恢复默认：清空存档并回填默认配置 */
+        function resetAll() {
+            try {localStorage.removeItem(STORE_KEY);} catch (e) { }
+            $('content').value = DEFAULT_CONTENT;
+            applyConfig(DEFAULTS);
+            render();
+        }
+
+        /* ==================== 实时联动 ==================== */
+
+        /* 输入类控件防抖监听：停顿 250ms 后再重新渲染，避免频繁重绘 */
+        let timer = null;
+        ['content', 'cols', 'customFont', 'indent', 'fontColor', 'borderColor', 'guideColor',
+            'headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].forEach(id => {
+                $(id).addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(render, 250);
+                });
+            });
+
+        /* 窗口尺寸变化防抖：重新计算预览缩放 */
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(render, 200);
+        });
+
+        /* ==================== 启动初始化 ==================== */
+        const DEFAULT_CONTENT = $('content').value;   /* 保存初始示例文本用于恢复默认 */
+
+        (function init() {
+            buildShapeChips();
+            buildFontMenu();
+            buildHfFontMenu();
+            /* 先填充三个线型下拉的默认选项 */
+            fillStyleSelect($('guideStyle'), DEFAULTS.guideStyle);
+            fillStyleSelect($('gridStyle'), DEFAULTS.gridStyle);
+
+            /* 读取本地存档（兼容 v3 旧键名），无存档则用默认配置 */
+            let saved = null;
+            try {
+                saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
+                    || JSON.parse(localStorage.getItem('zitie-config-v3') || 'null');
+            } catch (e) { }
+            applyConfig(saved || DEFAULTS);
+            render();
+
+            /* 窄屏默认收起面板 */
+            if (window.innerWidth < 700) {
+                $('panel').classList.add('collapsed');
+                $('toggleBtn').innerText = '展开';
+            }
+        })();
+    </script>
+</body>
+
+</html>
