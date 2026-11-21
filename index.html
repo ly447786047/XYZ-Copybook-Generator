@@ -1868,7 +1868,7 @@
             const totalChars = chars.filter(c => c).length;
             $('pageTip').innerText = `共 ${totalPages} 页 · 每页 ${rows} 行 × ${cols} 字 · ${totalChars} 字`;
             $('scaleTip').innerText = scale < 1
-                ? `预览缩放 ${Math.round(scale * 100)}%，打印为实际 A4`
+                ? `预览为等比例缩放尺寸（ ${Math.round(scale * 100)}%），打印实际输出 A4 纸尺寸（210mm × 297mm）`
                 : '预览为等比例缩放尺寸，打印实际输出 A4 纸尺寸（210mm × 297mm）';
 
             saveConfig();
