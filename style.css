@@ -1,0 +1,796 @@
+/* ========== 全局重置：盒模型统一 + 去除点击高亮 ========== */
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    /* Firefox：隐藏滚动条 */
+    scrollbar-width: none;
+    /* IE、旧版 Edge：隐藏滚动条 */
+    -ms-overflow-style: none;
+}
+
+/* Chrome / Edge / Safari：隐藏 WebKit 内核滚动条（仍可正常滚动） */
+*::-webkit-scrollbar {
+    display: none;
+}
+
+/* ========== 页面基础样式 ========== */
+body {
+    margin: 0;
+    padding: 16px;
+    background: #e8edf3;
+    /* 拟态浅灰蓝底色 */
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #3a4350;
+}
+
+/* ================= 左右分栏：左侧 1/3 设置面板，右侧 2/3 预览 ================= */
+.app {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    max-width: 1700px;
+    margin: 0 auto;
+}
+
+/* ========== 左侧设置面板 ==========
+结构：panel（固定高度、flex 纵向）
+        ├─ panel-head  标题栏（固定不动）
+        └─ panel-body  选项区（独立滚动） */
+.panel {
+    flex: 0 0 33.333%;
+    width: 33.333%;
+    background: #e8edf3;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 7px 7px 16px #c8ccd2, -7px -7px 16px #ffffff;
+    position: sticky;
+    top: 16px;
+    /* 随页面吸附在视口顶部 */
+    max-height: calc(100vh - 32px);
+    /* 面板最高不超过一屏 */
+    display: flex;
+    flex-direction: column;
+    /* 上下分栏：头部 + 滚动区 */
+    overflow: hidden;
+    /* 面板自身不滚动，滚动交给 body */
+}
+
+/* 右侧预览容器：占满剩余宽度 */
+.preview-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ========== 面板标题栏（固定在面板顶部，不随选项区滚动） ========== */
+.panel-head {
+    flex-shrink: 0;
+    /* 头部禁止被压缩 */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #e8edf3;
+    /* 与面板同色，滚动内容不会穿透 */
+    padding-bottom: 10px;
+    z-index: 5;
+    /* 层级高于滚动内容 */
+}
+
+.panel-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: .5px;
+}
+
+/* 头部右侧按钮组：三个主操作按钮 + 收起/展开按钮，四个按钮尺寸完全一致 */
+.head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn.top {
+    width: 96px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* 面板选项区：唯一滚动区域 */
+.panel-body {
+    flex: 1;
+    /* 占满头部之外的剩余高度 */
+    min-height: 0;
+    /* flex 布局下允许收缩，否则滚动条不生效 */
+    overflow-y: auto;
+    /* 内容超出时纵向滚动 */
+}
+
+/* 折叠状态：隐藏选项区，只留标题栏 */
+.panel.collapsed .panel-body {
+    display: none;
+}
+
+/* ========== 分组小标题 ========== */
+.group-title {
+    font-size: 12px;
+    color: #8b94a3;
+    margin: 14px 0 6px;
+    letter-spacing: 1px;
+}
+
+/* ========== 表单项：一行布局（标签 + 控件） ========== */
+.row-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+}
+
+.row-item>label {
+    min-width: 78px;
+    font-size: 12.5px;
+    color: #5a6472;
+    flex-shrink: 0;
+}
+
+.row-item>.fill {
+    flex: 1;
+    min-width: 130px;
+}
+
+/* 滑块行：滑块 + 颜色框横向排列 */
+.slider-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.slider-line input[type="range"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.slider-line input[type="color"] {
+    flex: 0 0 auto;
+}
+
+/* ========== 拟态输入控件（输入框 / 下拉 / 文本域 / 数字框） ========== */
+.neo,
+.neo-select,
+.neo-textarea,
+.neo-num {
+    background: #e8edf3;
+    border: 0;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: #3a4350;
+    box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+    outline: none;
+    font-family: inherit;
+}
+
+.neo-num {
+    width: 70px;
+}
+
+.neo-textarea {
+    width: 100%;
+    min-height: 84px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+/* ========== 通用按钮 ========== */
+.btn {
+    background: #e8edf3;
+    border: 0;
+    border-radius: 12px;
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #3a4350;
+    box-shadow: 4px 4px 9px #c8ccd2, -4px -4px 9px #ffffff;
+    cursor: pointer;
+    transition: box-shadow .15s, transform .15s;
+    font-family: inherit;
+}
+
+/* 按下态：内凹阴影 + 轻微缩放 */
+.btn:active {
+    box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+    transform: scale(.98);
+}
+
+.btn.small {
+    padding: 7px 11px;
+    font-size: 12px;
+    border-radius: 10px;
+}
+
+.btn.primary {
+    color: #b3392c;
+}
+
+/* 主操作按钮：红色强调 */
+
+/* ========== 取色器样式 ========== */
+input[type="color"] {
+    width: 42px;
+    height: 30px;
+    border: 0;
+    border-radius: 8px;
+    padding: 2px;
+    cursor: pointer;
+    background: #e8edf3;
+}
+
+/* ========== 滑块（range）样式 ========== */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 22px;
+    background: transparent;
+}
+
+/* WebKit 轨道 */
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: #dfe5ec;
+    box-shadow: inset 2px 2px 4px #c8ccd2, inset -2px -2px 4px #ffffff;
+}
+
+/* WebKit 滑块拇指 */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: #e8edf3;
+    border: 2px solid #cfd6df;
+    box-shadow: 2px 2px 5px #c0c6ce, -2px -2px 5px #ffffff;
+}
+
+/* Firefox 轨道与拇指 */
+input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: #dfe5ec;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e8edf3;
+    border: 2px solid #cfd6df;
+}
+
+/* 数值标签：显示滑块当前值 */
+.value-tag {
+    display: inline-block;
+    min-width: 50px;
+    font-size: 12px;
+    color: #b3392c;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ========== 分段选择器（显示/隐藏 等切换按钮组） ========== */
+.seg {
+    display: inline-flex;
+    align-self: flex-start;
+    flex-wrap: wrap;
+    gap: 2px;
+    background: #e8edf3;
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+}
+
+.seg button {
+    border: 0;
+    background: transparent;
+    color: #6b7482;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+/* 选中态：凸起阴影 + 红色文字 */
+.seg button.on {
+    background: #e8edf3;
+    color: #b3392c;
+    font-weight: 600;
+    box-shadow: 3px 3px 6px #c8ccd2, -3px -3px 6px #ffffff;
+}
+
+/* ========== 自定义下拉（字体选择） ========== */
+.dd {
+    position: relative;
+    flex: 1;
+    min-width: 170px;
+}
+
+.dd-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #e8edf3;
+    border-radius: 10px;
+    padding: 6px 12px 6px 8px;
+    box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dd-trigger .dd-label {
+    flex: 1;
+    font-size: 13px;
+}
+
+.dd-trigger .dd-arrow {
+    color: #9aa3b0;
+    font-size: 12px;
+    transition: transform .2s;
+}
+
+.dd.open .dd-trigger .dd-arrow {
+    transform: rotate(180deg);
+}
+
+/* 展开时箭头翻转 */
+.dd-menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: #eef2f7;
+    border-radius: 14px;
+    padding: 6px;
+    list-style: none;
+    margin: 0;
+    box-shadow: 0 12px 30px rgba(58, 67, 80, .18), 6px 6px 14px #c8ccd2, -6px -6px 14px #ffffff;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+}
+
+.dd.open .dd-menu {
+    display: block;
+}
+
+.dd-menu li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.dd-menu li:hover {
+    background: #e4eaf1;
+}
+
+.dd-menu li.sel {
+    background: #e8edf3;
+    box-shadow: inset 2px 2px 5px #c8ccd2, inset -2px -2px 5px #ffffff;
+}
+
+.dd-txt span {
+    display: block;
+    font-size: 13px;
+    color: #3a4350;
+}
+
+.dd-txt small {
+    display: block;
+    font-size: 11px;
+    color: #97a0ad;
+    margin-top: 1px;
+}
+
+/* ========== 笔画粗细三档滑块 ========== */
+.stroke-level {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.stroke-level input[type="range"] {
+    width: 100%;
+}
+
+.stroke-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #97a0ad;
+    padding: 0 4px;
+}
+
+.stroke-marks span.on {
+    color: #b3392c;
+    font-weight: 600;
+}
+
+/* ========== 一键配色圆形色板 ========== */
+.swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sw {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 2px 2px 5px #c8ccd2, -2px -2px 5px #ffffff;
+}
+
+/* 头部主操作按钮组（生成 / 打印 / 恢复默认） */
+.actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ================= 右侧预览区 ================= */
+.preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #8b94a3;
+    gap: 10px;
+    margin: 0 0 8px;
+}
+
+.page-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding-bottom: 30px;
+}
+
+.page-wrap {
+    position: relative;
+}
+
+/* ================= A4 纸张 ================= */
+@page {
+    size: A4;
+    margin: 0;
+}
+
+/* 打印时按 A4 纸、无边距输出 */
+
+.a4-page {
+    width: 210mm;
+    height: 297mm;
+    background: #ffffff;
+    position: relative;
+    overflow: hidden;
+    transform-origin: top left;
+    /* 缩放以左上角为原点 */
+    box-shadow: 0 8px 24px rgba(58, 67, 80, .16);
+}
+
+/* 页眉页脚条：左 / 中 / 右三栏布局 */
+.bar {
+    position: absolute;
+    left: 15mm;
+    right: 15mm;
+    display: flex;
+    align-items: flex-start;
+    color: #333;
+    letter-spacing: 0;
+    line-height: 1;
+    /* 行高收紧，文字不越过条带下边界 */
+    z-index: 4;
+    /* 始终盖在外框线之上，避免被线条压住 */
+}
+
+.bar>span {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.bar>span:nth-child(1) {
+    text-align: left;
+}
+
+.bar>span:nth-child(2) {
+    text-align: center;
+}
+
+.bar>span:nth-child(3) {
+    text-align: right;
+}
+
+.bar .page-no {
+    color: #666;
+}
+
+/* 字帖网格容器与行 */
+.grid {
+    position: absolute;
+    top: 15mm;
+    left: 15mm;
+}
+
+.row {
+    display: flex;
+    height: var(--cell, 15mm);
+}
+
+/* 单个方格：只负责摆放文字，不再自带边框（边框由全局网格线图层统一绘制） */
+.cell {
+    width: var(--cell, 15mm);
+    height: var(--cell, 15mm);
+    flex: 0 0 var(--cell, 15mm);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    overflow: hidden;
+}
+
+/* ---------- 全局网格线图层：整页统一的横线 / 竖线 ---------- */
+.grid-lines {
+    position: absolute;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ---------- 方格内辅助线：矢量 SVG ---------- */
+.gs {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+}
+
+/* 空心描红字形 SVG（矢量描边，打印 PDF 不失真） */
+.glyph-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.gs .ln {
+    fill: none;
+    stroke: var(--guide-color);
+    stroke-width: var(--guide-w);
+    vector-effect: non-scaling-stroke;
+}
+
+/* 整组格子外框：SVG 图层，线宽全部向外扩张，不侵占内部格子区域 */
+.frame-svg {
+    position: absolute;
+    pointer-events: none;
+    z-index: 3;
+}
+
+/* ---------- 样式选择 chips（线条 / 形状） ---------- */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 10px 6px 6px;
+    background: #e8edf3;
+    border: 0;
+    border-radius: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: #6b7482;
+    box-shadow: 3px 3px 7px #c8ccd2, -3px -3px 7px #ffffff;
+    transition: box-shadow .15s, color .15s;
+}
+
+.chip:active {
+    box-shadow: inset 2px 2px 6px #c8ccd2, inset -2px -2px 6px #ffffff;
+}
+
+.chip.on {
+    color: #b3392c;
+    font-weight: 600;
+    box-shadow: inset 3px 3px 7px #c8ccd2, inset -3px -3px 7px #ffffff;
+}
+
+/* chip 内的迷你方格预览 */
+.chip .mini-cell {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border: 1px solid rgba(140, 152, 168, .85);
+    border-radius: 4px;
+    --border-w: 1px;
+    --border-style: solid;
+    --border-color: rgba(140, 152, 168, .85);
+    --guide-color: rgba(140, 152, 168, .9);
+    --guide-w: 1px;
+}
+
+.chip .mini-cell .gs {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* 禁用/置灰状态（未选任何样式时，相关选项不可用） */
+.dim {
+    opacity: .45;
+    pointer-events: none;
+}
+
+.neo:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+    box-shadow: inset 2px 2px 5px #c8ccd2, inset -2px -2px 5px #ffffff;
+    background: #e3e9f0;
+}
+
+/* 提示小字 */
+.hint {
+    font-size: 12px;
+    color: #97a0ad;
+    line-height: 1.7;
+}
+
+/* ========== 窄屏响应式：改为上下堆叠 ========== */
+@media (max-width: 1000px) {
+    .app {
+        flex-direction: column;
+    }
+
+    .panel {
+        flex: none;
+        width: 100%;
+        position: static;
+        max-height: none;
+    }
+
+    .panel-body {
+        overflow: visible;
+    }
+
+    /* 移动端随页面整体滚动，不内部滚动 */
+    .row-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .row-item>label {
+        min-width: 0;
+    }
+
+    .dd {
+        min-width: 0;
+    }
+}
+
+/* ========== 打印样式：隐藏设置面板与预览栏，只输出 A4 页面 ========== */
+@media print {
+
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    .panel,
+    .preview-bar {
+        display: none !important;
+    }
+
+    .page-container {
+        gap: 0;
+        padding: 0;
+    }
+
+    .page-wrap {
+        width: auto !important;
+        height: auto !important;
+    }
+
+    .a4-page {
+        transform: none !important;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* ========== 篇目库列表 ========== */
+.lib-list {
+    max-height: 190px;
+    overflow-y: auto;
+    margin-top: 6px;
+    padding: 6px;
+    border-radius: 14px;
+    background: #e8edf3;
+    box-shadow: inset 3px 3px 6px #c8ccd2, inset -3px -3px 6px #ffffff;
+}
+
+.lib-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: #3a4350;
+}
+
+.lib-item:hover {
+    background: #dfe6ee;
+    box-shadow: inset 1px 1px 3px #c8ccd2, inset -1px -1px 3px #fff;
+}
+
+.lib-item .lib-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lib-item .lib-name i {
+    font-style: normal;
+    color: #97a0ad;
+    margin-left: 6px;
+    font-size: 11.5px;
+}
+
+.lib-item .lib-meta {
+    color: #97a0ad;
+    font-size: 11.5px;
+    flex: none;
+}
+
+.lib-empty {
+    padding: 8px;
+    color: #97a0ad;
+    font-size: 12px;
+    text-align: center;
+}
